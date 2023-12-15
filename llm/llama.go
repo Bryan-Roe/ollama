@@ -858,6 +858,8 @@ func (llm *llama) Ping(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ping resp: %w", err)
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected ping status: %s", resp.Status)
 	}

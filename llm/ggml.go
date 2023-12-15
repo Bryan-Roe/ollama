@@ -92,9 +92,9 @@ func (c *containerGGML) Name() string {
 	return "ggml"
 }
 
-func (c *containerGGML) Decode(ro *readSeekOffset) (model, error) {
+func (c *containerGGML) Decode(rso *readSeekOffset) (model, error) {
 	// file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
+	rso.Seek(0, io.SeekEnd)
 	return nil, nil
 }
 
@@ -106,9 +106,9 @@ func (c *containerGGMF) Name() string {
 	return "ggmf"
 }
 
-func (c *containerGGMF) Decode(ro *readSeekOffset) (model, error) {
+func (c *containerGGMF) Decode(rso *readSeekOffset) (model, error) {
 	var version uint32
-	binary.Read(ro, binary.LittleEndian, &version)
+	binary.Read(rso, binary.LittleEndian, &version)
 
 	switch version {
 	case 1:
@@ -119,7 +119,7 @@ func (c *containerGGMF) Decode(ro *readSeekOffset) (model, error) {
 	c.version = version
 
 	// remaining file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
+	rso.Seek(0, io.SeekEnd)
 
 	return nil, nil
 }
@@ -132,9 +132,9 @@ func (c *containerGGJT) Name() string {
 	return "ggjt"
 }
 
-func (c *containerGGJT) Decode(ro *readSeekOffset) (model, error) {
+func (c *containerGGJT) Decode(rso *readSeekOffset) (model, error) {
 	var version uint32
-	binary.Read(ro, binary.LittleEndian, &version)
+	binary.Read(rso, binary.LittleEndian, &version)
 
 	switch version {
 	case 1, 2, 3:
@@ -146,10 +146,10 @@ func (c *containerGGJT) Decode(ro *readSeekOffset) (model, error) {
 
 	// different model types may have different layouts for hyperparameters
 	var llama llamaModel
-	binary.Read(ro, binary.LittleEndian, &llama.hyperparameters)
+	binary.Read(rso, binary.LittleEndian, &llama.hyperparameters)
 
 	// remaining file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
+	rso.Seek(0, io.SeekEnd)
 
 	return &llama, nil
 }
@@ -162,9 +162,9 @@ func (c *containerLORA) Name() string {
 	return "ggla"
 }
 
-func (c *containerLORA) Decode(ro *readSeekOffset) (model, error) {
+func (c *containerLORA) Decode(rso *readSeekOffset) (model, error) {
 	var version uint32
-	binary.Read(ro, binary.LittleEndian, &version)
+	binary.Read(rso, binary.LittleEndian, &version)
 
 	switch version {
 	case 1:
@@ -175,7 +175,7 @@ func (c *containerLORA) Decode(ro *readSeekOffset) (model, error) {
 	c.version = version
 
 	// remaining file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
+	rso.Seek(0, io.SeekEnd)
 
 	return nil, nil
 }
