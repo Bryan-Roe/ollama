@@ -205,7 +205,8 @@ func GenerateHandler(c *gin.Context) {
 		c.JSON(http.StatusOK, api.GenerateResponse{
 			CreatedAt: time.Now().UTC(),
 			Model:     req.Model,
-			Done:      true})
+			Done:      true,
+		})
 		return
 	}
 
