@@ -31,6 +31,11 @@ const (
 	fileTypeQ5_K_S
 	fileTypeQ5_K_M
 	fileTypeQ6_K
+	fileTypeIQ2_XXS
+	fileTypeIQ2_XS
+	fileTypeQ2_K_S
+	fileTypeQ3_K_XS
+	fileTypeIQ3_XXS
 )
 
 func fileType(fileType uint32) string {
@@ -69,6 +74,16 @@ func fileType(fileType uint32) string {
 		return "Q5_K_M"
 	case fileTypeQ6_K:
 		return "Q6_K"
+	case fileTypeIQ2_XXS:
+		return "IQ2_XXS"
+	case fileTypeIQ2_XS:
+		return "IQ2_XS"
+	case fileTypeQ2_K_S:
+		return "Q2_K_S"
+	case fileTypeQ3_K_XS:
+		return "Q3_K_XS"
+	case fileTypeIQ3_XXS:
+		return "IQ3_XXS"
 	default:
 		return "unknown"
 	}
@@ -78,106 +93,17 @@ type model interface {
 	ModelFamily() string
 	ModelType() string
 	FileType() string
-	NumLayers() int64
+	NumLayers() uint32
+	NumGQA() uint32
+	NumEmbed() uint32
+	NumHead() uint32
+	NumHeadKv() uint32
+	NumCtx() uint32
 }
 
 type container interface {
 	Name() string
 	Decode(*readSeekOffset) (model, error)
-}
-
-type containerGGML struct{}
-
-func (c *containerGGML) Name() string {
-	return "ggml"
-}
-
-func (c *containerGGML) Decode(ro *readSeekOffset) (model, error) {
-	// file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
-	return nil, nil
-}
-
-type containerGGMF struct {
-	version uint32
-}
-
-func (c *containerGGMF) Name() string {
-	return "ggmf"
-}
-
-func (c *containerGGMF) Decode(ro *readSeekOffset) (model, error) {
-	var version uint32
-	binary.Read(ro, binary.LittleEndian, &version)
-
-	switch version {
-	case 1:
-	default:
-		return nil, errors.New("invalid version")
-	}
-
-	c.version = version
-
-	// remaining file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
-
-	return nil, nil
-}
-
-type containerGGJT struct {
-	version uint32
-}
-
-func (c *containerGGJT) Name() string {
-	return "ggjt"
-}
-
-func (c *containerGGJT) Decode(ro *readSeekOffset) (model, error) {
-	var version uint32
-	binary.Read(ro, binary.LittleEndian, &version)
-
-	switch version {
-	case 1, 2, 3:
-	default:
-		return nil, errors.New("invalid version")
-	}
-
-	c.version = version
-
-	// different model types may have different layouts for hyperparameters
-	var llama llamaModel
-	binary.Read(ro, binary.LittleEndian, &llama.hyperparameters)
-
-	// remaining file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
-
-	return &llama, nil
-}
-
-type containerLORA struct {
-	version uint32
-}
-
-func (c *containerLORA) Name() string {
-	return "ggla"
-}
-
-func (c *containerLORA) Decode(ro *readSeekOffset) (model, error) {
-	var version uint32
-	binary.Read(ro, binary.LittleEndian, &version)
-
-	switch version {
-	case 1:
-	default:
-		return nil, errors.New("invalid version")
-	}
-
-	c.version = version
-
-	// remaining file contents aren't decoded
-	ro.Seek(0, io.SeekEnd)
-
-	return nil, nil
 }
 
 const (
@@ -194,6 +120,8 @@ const (
 	FILE_MAGIC_GGUF_BE = 0x47475546
 )
 
+var ErrUnsupportedFormat = errors.New("unsupported model format")
+
 func DecodeGGML(r io.ReadSeeker) (*GGML, error) {
 	ro := readSeekOffset{ReadSeeker: r}
 
@@ -204,24 +132,22 @@ func DecodeGGML(r io.ReadSeeker) (*GGML, error) {
 
 	var c container
 	switch magic {
-	case FILE_MAGIC_GGML:
-		c = &containerGGML{}
-	case FILE_MAGIC_GGMF:
-		c = &containerGGMF{}
-	case FILE_MAGIC_GGJT:
-		c = &containerGGJT{}
+	case FILE_MAGIC_GGML, FILE_MAGIC_GGMF, FILE_MAGIC_GGJT:
+		return nil, ErrUnsupportedFormat
 	case FILE_MAGIC_GGLA:
-		c = &containerLORA{}
+		c = &ContainerGGLA{}
 	case FILE_MAGIC_GGUF_LE:
-		c = &containerGGUF{bo: binary.LittleEndian}
+		c = &ContainerGGUF{ByteOrder: binary.LittleEndian}
 	case FILE_MAGIC_GGUF_BE:
-		c = &containerGGUF{bo: binary.BigEndian}
+		c = &ContainerGGUF{ByteOrder: binary.BigEndian}
 	default:
 		return nil, errors.New("invalid file magic")
 	}
 
 	model, err := c.Decode(&ro)
-	if err != nil {
+	if errors.Is(err, io.EOF) {
+		// noop
+	} else if err != nil {
 		return nil, err
 	}
 
